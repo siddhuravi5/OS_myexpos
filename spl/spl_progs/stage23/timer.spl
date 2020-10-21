@@ -1,0 +1,16 @@
+breakpoint;
+//print "timer";
+//preprocess
+[PROCESS_TABLE+ ( [SYSTEM_STATUS_TABLE+1]*16) + 13] = SP;
+SP= [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16)+11] * 512 -1;
+//backup;
+
+
+//print "pre timer";
+[PROCESS_TABLE+ ( [SYSTEM_STATUS_TABLE+1]*16) + 4] = READY;
+call MOD_5;
+
+//print "post timer";
+SP=[PROCESS_TABLE+ ( [SYSTEM_STATUS_TABLE+1]*16) + 13];
+breakpoint;
+ireturn;

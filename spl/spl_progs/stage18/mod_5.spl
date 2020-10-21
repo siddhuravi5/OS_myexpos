@@ -1,0 +1,112 @@
+backup;
+//print "1";
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+multipush (BP);
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+
+[process_table_entry + 12] = SP % 512; //kptr stores offest only
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+alias i R2;
+alias newPID R3;
+newPID=-1;
+alias newState R4;
+i=currentPID+1;
+alias process_table R10;
+process_table=PROCESS_TABLE;
+//print "2";
+while(i<16) do
+	if([process_table+i*16+4]==READY || [process_table+i*16+4]==CREATED) then
+		newPID=i;
+		newState=[process_table+i*16+4];
+		break;
+	endif;
+	i=i+1;
+endwhile;
+if(newPID==-1) then
+	i=0;
+	while(i<=currentPID) do
+		if([process_table+i*16+4]==READY || [process_table+i*16+4]==CREATED) then
+			newPID=i;
+			newState=[process_table+i*16+4];
+			break;
+			endif;
+		i=i+1;
+	endwhile;
+endif;
+//print "3";
+if(newPID==-1) then
+	[SYSTEM_STATUS_TABLE+1]=0;
+	alias new_process_table R5;
+	new_process_table = PROCESS_TABLE + newPID * 16;
+
+	//Set back Kernel SP, PTBR , PTLR
+
+	SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+	PTBR = [new_process_table + 14];
+	PTLR = [new_process_table + 15];
+	multipop (BP);
+	restore;
+	SP= [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16)+13];
+	return;
+endif;
+//print "4";
+[SYSTEM_STATUS_TABLE+1] = newPID;
+
+if(newState==CREATED) then
+	//print "created";
+	alias new_process_table R5;
+	new_process_table = PROCESS_TABLE + newPID * 16;
+
+	//Set back Kernel SP, PTBR , PTLR
+
+	SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+	PTBR = [new_process_table + 14];
+	PTLR = [new_process_table + 15];
+	[new_process_table + 9] =0;
+	[new_process_table + 4] = RUNNING;
+	//POP BP;
+	//restore;
+	SP= [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16)+13];
+	//print PTBR; print PAGE_TABLE_BASE; print newPID; 
+	//print "created";
+	//print newPID;
+	ireturn;
+endif;
+//print "6";
+//if (newState==READY) then
+//	print "ready";
+//endif;
+//print newPID;
+alias new_process_table R5;
+new_process_table = PROCESS_TABLE + newPID * 16;
+
+//Set back Kernel SP, PTBR , PTLR
+R0=SP;
+SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+[new_process_table + 4] = RUNNING;
+multipop (BP);
+//print "ooh";
+restore;
+//R13=PTBR-PAGE_TABLE_BASE;
+//print R13;
+//print PTLR;
+//SP= [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16)+13];
+
+//SP=R0;
+//print "bye";
+//print "scheduling";
+//print newPID;
+return;
+
+
+
+
+
+
+

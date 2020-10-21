@@ -1,0 +1,142 @@
+//print "Fork";
+
+[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+9]=8;
+[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+SP=[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+11]*512-1;
+//backup;
+R1=1;
+call MOD_1;
+alias childpid R2;
+childpid=R0;
+if(childpid==-1) then
+	restore;
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE]*16+13]=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE]*16+13]+1;
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE]*16+13]=-1;
+	[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	SP=[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+13];
+	ireturn;
+endif;
+alias ptbr R1;
+ptbr=[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+14];
+alias childptbr R4;
+childptbr=[PROCESS_TABLE+childpid*16+14];
+
+//allocate heap pages to parent if it doesn't have one
+if([ptbr+2]==-1) then
+	multipush(R1,R2,R4);
+	R1=1;
+	call MOD_2;
+	multipop(R1,R2,R4);
+	[ptbr+4]=R0;
+	[ptbr+5]="1110";
+	multipush(R1,R2,R4);
+	R1=1;
+	call MOD_2;
+	multipop(R1,R2,R4);
+	[ptbr+6]=R0;
+	[ptbr+7]="1110";
+endif;
+
+//alloc stack
+multipush(R1,R2,R4);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R4);
+[childptbr+16]=R0;
+[childptbr+17]="1110";
+
+alias childstack R10;
+childstack=R0;
+
+multipush(R1,R2,R4);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R4);
+[childptbr+18]=R0;
+[childptbr+19]="1110";
+
+//alloc user area page
+multipush(R1,R2,R4);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R4);
+[PROCESS_TABLE+ childpid*16 + 11]=R0;
+
+[PROCESS_TABLE+ childpid*16 +3]=[PROCESS_TABLE +[SYSTEM_STATUS_TABLE+1]*16 +3];
+[PROCESS_TABLE+ childpid*16 +6]=[PROCESS_TABLE +[SYSTEM_STATUS_TABLE+1]*16 +6];
+[PROCESS_TABLE+ childpid*16 +10]=[PROCESS_TABLE +[SYSTEM_STATUS_TABLE+1]*16 +10];
+[PROCESS_TABLE+ childpid*16 +7]=[PROCESS_TABLE +[SYSTEM_STATUS_TABLE+1]*16 +7];
+[PROCESS_TABLE+ childpid*16 +13]=[PROCESS_TABLE +[SYSTEM_STATUS_TABLE+1]*16 +13];
+
+[PROCESS_TABLE+ childpid*16 +9]=0;
+[PROCESS_TABLE+ childpid*16 +12]=0;
+[PROCESS_TABLE+ childpid*16 +0]=0;
+[PROCESS_TABLE+ childpid*16 +2]=[SYSTEM_STATUS_TABLE+1];
+[PROCESS_TABLE+ childpid*16 +4]=CREATED;
+
+//copy per process resource table
+alias i R3;
+i=1;
+while(i<=16) do
+	[[PROCESS_TABLE+childpid*16+11]*512 +512 -i]=[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE +1]*16+11]*512 +512 -i];
+	i=i+1;
+endwhile;
+
+//copy per process disk map table
+i=0;
+while(i<10) do
+	[DISK_MAP_TABLE+childpid*10+i]=[DISK_MAP_TABLE+[SYSTEM_STATUS_TABLE +1]*10+i];
+	i=i+1;
+endwhile;
+
+//copying page table entries;
+i=0;
+while(i<16) do
+	if(i%2==0) then
+		[MEMORY_FREE_LIST+[ptbr+i]]=[MEMORY_FREE_LIST+[ptbr+i]]+1;
+	endif;
+	[childptbr+i]=[ptbr+i];
+	i=i+1;
+endwhile;
+
+//copy stack word by word
+alias n R7;
+n=[ptbr+2*([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]/512)]*512+([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]%512);
+alias j R5;
+j=[childptbr+16]*512;
+i=[ptbr+16]*512;
+while(i<=n) do
+	[j]=[i];
+	i=i+1;
+	j=j+1;
+endwhile;
+
+SP=[PROCESS_TABLE+childpid*16+11]*512-1;
+SP=SP+1;
+[SP]=BP;
+
+alias sp R8;
+sp=[PROCESS_TABLE+childpid*16+13];
+sp=sp-1;
+[ [ [PROCESS_TABLE+childpid*16+14] +2*(sp/512) ]*512 + (sp%512)]=0;
+
+sp=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+sp=sp-1;
+
+[ [ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14] +2*(sp/512) ]*512 + (sp%512)]=childpid;
+
+//restore;
+[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+9]=0;
+SP=[PROCESS_TABLE+ [SYSTEM_STATUS_TABLE+1]*16+13];
+//print "bye fork";
+ireturn;
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,4 @@
+MOV R0, "HELLO Earth, Happy to see you all"
+PORT P1, R0
+OUT
+HALT

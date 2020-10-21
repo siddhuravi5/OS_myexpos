@@ -1,0 +1,161 @@
+alias sp R10;
+alias syscall R11;
+alias temp R12;
+temp=PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16;
+sp=SP;
+[temp+13]=SP;
+SP=[temp+11]*512 -1;
+syscall=[ [ [temp+14] + 2*((sp-5)/512) ]*512 + (sp-5)%512 ];
+
+//create
+if(syscall==1) then
+	print "create";
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=1;
+	alias fileName R1;
+	alias permission R2;
+	fileName=[ [ [temp+14] + 2*((sp-4)/512) ]*512 + (sp-4)%512 ];
+	permission=[ [ [temp+14] + 2*((sp-3)/512) ]*512 + (sp-3)%512 ];
+	alias i R3;
+	i=0;
+	//60
+//	while(i<MAX_FILE_NUM) do
+//		if([INODE_TABLE+16*i+1]==fileName) then
+//			//print "file exists";
+//			[temp+9]=0;
+//			[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=0;
+//			SP=[temp+13];
+//			ireturn;
+//		endif;
+//		i=i+1;
+//	endwhile;
+
+	i=0;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE+i*16+1]==-1) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+
+//	if(i==60) then
+//		//print "max file limit reached";
+//		[temp+9]=0;
+//		[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=-1;
+//		SP=[temp+13];
+//		ireturn;
+//	endif;
+//	print i;
+	[INODE_TABLE+i*16+0]=DATA;
+	[INODE_TABLE+i*16+1]=fileName;
+	[INODE_TABLE+i*16+2]=0;
+	[INODE_TABLE+i*16+4]=permission;
+	[INODE_TABLE+i*16+8]=-1;
+	[INODE_TABLE+i*16+9]=-1;
+	[INODE_TABLE+i*16+10]=-1;
+	[INODE_TABLE+i*16+11]=-1;
+	[INODE_TABLE+i*16+3]=[temp+3]; //userId
+
+	[ROOT_FILE+i*8+0]=fileName;
+	[ROOT_FILE+i*8+1]=0;
+	[ROOT_FILE+i*8+2]=DATA;
+	[ROOT_FILE+i*8+3]= [USER_TABLE+[temp+3]*2+0]; //username=user_Table+user_id*2+0
+	[ROOT_FILE+i*8+4]=permission;
+
+	[temp+9]=0;
+	[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=0;
+	SP=[temp+13];
+	ireturn;
+endif;
+
+//delete
+if(syscall==4) then
+	[temp+9]=4;
+	alias fileName R1;
+	fileName=[ [ [temp+14] + 2*((sp-4)/512) ]*512 + (sp-4)%512 ];
+	alias i R2;
+	i=0;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE+i*16+1]==fileName) then
+			if([INODE_TABLE+i*16+0]!=DATA) then
+				[temp+9]=0;
+				[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=-1;
+				SP=[temp+13];
+				ireturn;
+			endif;
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	
+	//exclusive permission
+	// root userid is 1
+	if([INODE_TABLE+i*16+4]==0) then
+		if([INODE_TABLE+i*16+3]!=1 && [INODE_TABLE+i*16+3]!=[temp+3]) then
+			print "del perm denied";
+			[temp+9]=0;
+			[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=-1;
+			SP=[temp+13];
+			ireturn;
+		endif;
+	endif;
+	multipush(R1,R2,R10,R11,R12);
+	R1=4;
+	R2=i;
+	R3=[SYSTEM_STATUS_TABLE+1];
+	call MOD_0; //acquire inode table
+	multipop(R1,R2,R10,R11,R12);
+	
+//	if([FILE_STATUS_TABLE+i*4+1]!=-1) then
+//		//file is open cannot be deleted
+//		//print "file open del no";
+//		multipush(R1,R2,R10,R11);
+//		R1=5;
+//		R2=i;
+//		R3=[SYSTEM_STATUS_TABLE+1];
+//		call MOD_0; //release inode table
+//		multipop(R1,R2,R10,R11);
+//		[temp+9]=0;
+//		[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=-2;
+//		SP=[temp+13];
+//		ireturn;
+//		
+//	endif;
+	
+	alias j R3;
+	j=8;
+	while(j<12) do
+		if([INODE_TABLE+i*16+j]!=-1) then
+			//allocated
+			alias ind R5;
+			ind=[INODE_TABLE+i*16+j]%MAX_BUFFER;  //buffer_num=(disk_block_num) % (max_buffer)
+			if([BUFFER_TABLE+ind*4+0]==[INODE_TABLE+i*16+j]) then
+				if([BUFFER_TABLE+ind*4+1]==1) then
+					[BUFFER_TABLE+ind*4+1]=0;
+				endif;
+			endif;
+			multipush(R1,R2,R3,R10,R11);
+			R1=4;
+			R2=[INODE_TABLE+i*16+j];
+			R3=[SYSTEM_STATUS_TABLE+1];
+			call MOD_2; //release block
+			multipop(R1,R2,R3,R10,R11,R12);
+			
+			//[INODE_TABLE+i*16+j]=-1;
+			//[ROOT_FILE+8*i+0]=-1;
+		endif;
+		j=j+1;
+	endwhile;
+	[INODE_TABLE+i*16+1]=-1;
+	[ROOT_FILE+i*8+0]=-1;
+	multipush(R1,R2,R3,R10,R11,R12);
+	R1=5;
+	R2=i;
+	R3=[SYSTEM_STATUS_TABLE+1];
+	call MOD_0; //release inode table
+	multipop(R1,R2,R3,R10,R11,R12);
+endif;
+
+[temp+9]=0;
+[ [ [temp+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=0;
+SP=[temp+13];
+ireturn;

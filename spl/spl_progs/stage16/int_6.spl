@@ -1,0 +1,29 @@
+//print "int 6";
+alias userSP R0;
+userSP=SP;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=7; //mode flag to system call number
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512-1;
+//print (userSP);
+alias fileDescriptor R1;
+fileDescriptor=[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-4)/512) ]*512 + (userSP-4)%512];
+if(fileDescriptor!=-1) then
+	[userSP-1] =-1;
+else
+	alias wordAddress R2;
+	wordAddress=(userSP-3);
+	multipush(R0,R1,R2);
+	R1=4;
+	R2=[SYSTEM_STATUS_TABLE+1];
+	R3=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]-3;
+	//print "word";
+	//print R3;
+	//print "into mod 4";
+	call MOD_4;
+	multipop(R0,R1,R2);
+endif;
+
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+ireturn;

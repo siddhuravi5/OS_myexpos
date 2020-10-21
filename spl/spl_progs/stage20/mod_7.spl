@@ -1,0 +1,156 @@
+//print "boot";
+
+//load int 8
+loadi(18,31);
+loadi(19,32);
+
+//load disk free list
+loadi(2,61);
+
+//load disk interrupt
+loadi(6,19);
+loadi(7,20);
+
+//load int9
+loadi(20,33);
+loadi(21,34);
+
+//load mod_1
+loadi(42,55);
+loadi(43,56);
+
+//load mod_2
+loadi(44,57);
+loadi(45,58);
+
+//load inode_table
+loadi(59,3);
+loadi(60,4);
+
+//load module 0
+loadi(40,53);
+loadi(41,54);
+
+//load module 4
+loadi(48,61);
+loadi(49,62);
+
+//load console interrupt
+loadi(8,21);
+loadi(9,22);
+
+//load INT 6
+loadi(14,27);
+loadi(15,28);
+
+[TERMINAL_STATUS_TABLE]=0; //terminal is free at begining
+
+loadi(16,29);
+loadi(17,30);
+loadi(4,17);
+loadi(5,18);
+loadi(63,13);
+loadi(64,14);
+
+//load init
+loadi(65,7);
+loadi(66,8);
+
+loadi(22,35);
+loadi(23,36);
+
+//exception handler
+loadi(2,15);
+loadi(3,16);
+
+//init
+PTBR=PAGE_TABLE_BASE +20; //as PID of init process is 1
+PTLR=10;
+//LIBRARY
+[PTBR+0]=63;
+[PTBR+1]="0100";
+[PTBR+2]=64;
+[PTBR+3]="0100";
+
+//HEAP
+[PTBR+4]=-1;   //78
+[PTBR+5]="0000";
+[PTBR+6]=-1;   //79
+[PTBR+7]="0000";
+
+//CODE
+[PTBR+8]=65;
+[PTBR+9]="0100";
+[PTBR+10]=66;
+[PTBR+11]="0100";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 76;
+[PTBR+17] = "0110";
+[PTBR+18] = 77;
+[PTBR+19] = "0110";
+[76*512]=[65*512+1];
+
+//init
+[PROCESS_TABLE + 16 + 11]=80;
+[PROCESS_TABLE + 16 + 1]=1;
+[PROCESS_TABLE + 16 + 4]=CREATED;
+[PROCESS_TABLE + 16 + 13]=8*512;
+[PROCESS_TABLE + 16 + 12]=0;
+[PROCESS_TABLE + 16 + 14]=PTBR;
+[PROCESS_TABLE + 16 + 15]=PTLR;
+
+[DISK_FREE_LIST+ 10+ 0 ]=-1;
+[DISK_FREE_LIST+ 10+ 1 ]=-1;
+[DISK_FREE_LIST+ 10+ 2 ]=-1;
+[DISK_FREE_LIST+ 10+ 3 ]=-1;
+[DISK_FREE_LIST+ 10+ 4 ]=-1;
+[DISK_FREE_LIST+ 10+ 5 ]=[INODE_TABLE+16+9];
+[DISK_FREE_LIST+ 10+ 6 ]=[INODE_TABLE+16+10];
+[DISK_FREE_LIST+ 10+ 7 ]=[INODE_TABLE+16+11];
+[DISK_FREE_LIST+ 10+ 8 ]=-1;
+[DISK_FREE_LIST+ 10+ 9 ]=-1;
+
+
+[PROCESS_TABLE + 16*2 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*3 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*4 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*5 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*6 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*7 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*8 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*9 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*10 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*11 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*12 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*13 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*14 + 4]=TERMINATED;
+[PROCESS_TABLE + 16*15 + 4]=TERMINATED;
+//print "boot over";
+
+alias i R0;
+i=80;
+while(i<120) do
+	[MEMORY_FREE_LIST+i]=0;
+	i=i+1;
+endwhile;
+[MEMORY_FREE_LIST+80]=1;
+[MEMORY_FREE_LIST+81]=1;
+[DISK_STATUS_TABLE]=0; //initially free
+
+alias j R11;
+//for init pgm, initializing per-process resource table
+while(j<16) do
+	[[PROCESS_TABLE+11]*512 +512 - 16 + j] =-1;
+	j=j+2;
+endwhile;
+
+[SYSTEM_STATUS_TABLE+3]=0;
+[SYSTEM_STATUS_TABLE+2]=39;
+
+
+return;
