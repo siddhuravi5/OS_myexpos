@@ -1,0 +1,107 @@
+//print "int 6";
+alias userSP R1;
+userSP=SP;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=7; //mode flag to system call number
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512-1;
+//print (userSP);
+alias fileDescriptor R2;
+fileDescriptor=[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-4)/512) ]*512 + (userSP-4)%512];
+if(fileDescriptor!=-1) then
+	if(fileDescriptor<0 && fileDescriptor>14) then
+		[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-1)/512) ]*512 + (userSP-1)%512]=-1;
+	else
+		//read file
+		alias word R3;
+		word=[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-3)/512) ]*512 + (userSP-3)%512];
+		alias openIndex R4;
+		alias inode R5;
+		openIndex=[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+fileDescriptor+1];
+		//print openIndex;
+		inode=[OPEN_FILE_TABLE+openIndex*4+0];
+		//print inode;
+		multipush(R1,R2,R3,R4,R5);
+		R1=4;
+		R2=inode;
+		R3=[SYSTEM_STATUS_TABLE+1];
+		call MOD_0; 			//acquire inode
+		multipop(R1,R2,R3,R4,R5);
+		if(R0==-1) then
+			[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-1)/512) ]*512 + (userSP-1)%512]=-1;
+			[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+			SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+			ireturn;
+		endif;
+		//print "acquired inode";
+		alias lseek R6;
+		lseek=[OPEN_FILE_TABLE+openIndex*4+2];
+		//print lseek;
+		word=[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((word)/512) ]*512 + (word)%512;
+		if([OPEN_FILE_TABLE+openIndex*4+0]==INODE_ROOT) then
+			alias i R7;
+			i=0;
+			while(i<16 && lseek<480) do
+				[word+i]=[ROOT_FILE+lseek+i];
+				i=i+1;
+			endwhile; 
+			if(lseek==480) then
+				[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-1)/512) ]*512 + (userSP-1)%512]=-2;
+			endif;
+		else
+			if(lseek!=[INODE_TABLE+inode*16+2]) then
+				//print "read fn";
+				multipush(R1,R2,R3,R4,R5,R6,R7);
+				R1=2;
+				R4=word;
+				//print lseek;
+				if(lseek<512) then
+					R2=[INODE_TABLE+inode*16+8];
+					//print R2;
+				else 
+					if(lseek<1024) then
+						
+						R2=[INODE_TABLE+inode*16+9];
+						//print R2;
+					else
+						if(lseek<1536) then
+							R2=[INODE_TABLE+inode*16+10];
+						else
+							R2=[INODE_TABLE+inode*16+11];
+						endif;
+					endif;
+				endif;
+				R3=lseek%512;
+				call MOD_3;
+				multipop(R1,R2,R3,R4,R5,R6,R7);
+				lseek=lseek+1;
+				//if(lseek==512 ||lseek==1024 ||lseek ==1536) then
+				//	lseek=0;
+				//endif;
+				[OPEN_FILE_TABLE+openIndex*4+2]=lseek;
+				[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-1)/512) ]*512 + (userSP-1)%512]=0;
+			else
+				[[ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE + 1]*16 + 14 ] + 2*((userSP-1)/512) ]*512 + (userSP-1)%512]=-2;
+			endif;
+		endif;
+		multipush(R1,R2,R3,R4,R5,R6,R7);
+		R1=4;
+		R2=inode;
+		R3=[SYSTEM_STATUS_TABLE+1];
+		call MOD_0; 			//release inode
+		multipop(R1,R2,R3,R4,R5,R6,R7);
+		//print "good";
+	endif;
+else
+	alias wordAddress R3;
+	wordAddress=(userSP-3);
+	multipush(R1,R2,R3);
+	R1=4;
+	R2=[SYSTEM_STATUS_TABLE+1];
+	R3=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]-3;
+	call MOD_4;
+	multipop(R1,R2,R3);
+endif;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+ireturn;
