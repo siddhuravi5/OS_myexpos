@@ -1,0 +1,21 @@
+int main(){
+decl
+	string file;
+	int a,b,c,temp,i,fd;
+enddecl
+begin
+	temp=exposcall("Read",-1,file);
+	fd=exposcall("Open",file);
+	if(fd==-1) then
+		temp=exposcall("Write",-2,"Invalid filename");
+	else
+		temp=exposcall("Read",fd,a);
+		while(temp!=-2) do
+			temp=exposcall("Write",-2,a);
+			temp=exposcall("Read",fd,a);
+		endwhile;
+	endif;
+	return 0;
+	
+end
+}

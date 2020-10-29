@@ -1,0 +1,28 @@
+int main()
+{
+decl
+    int temp, a, permission, fd,i,t;
+    string filename;
+enddecl
+
+begin
+    temp=exposcall("Read",-1,filename);
+    fd=exposcall("Open",filename);
+    t=exposcall("Seek",fd,9999); // to point at EOF
+    i=2000;
+    while(i<2514) do
+    	temp=exposcall("Write",fd,i);
+    	i=i+1;
+    endwhile;
+    temp=exposcall("Write",-2,"Lets seek");
+    t=exposcall("Seek",fd,-1);
+    while(t!=-2) do
+
+    	temp=exposcall("Read",fd,a);
+    	temp=exposcall("Write",-2,a);
+    	t=exposcall("Seek",fd,-2);
+   	i=i-1;
+    endwhile;
+    return 0;
+end
+}

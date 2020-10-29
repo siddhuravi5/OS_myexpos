@@ -1,0 +1,130 @@
+alias usersp R1;
+usersp=SP;
+
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512-1;
+alias syscallno R2;
+alias fileName R3;
+syscallno=[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-5)/512)]*512+(usersp-5)%512];
+fileName=[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+
+//open sys call
+if(syscallno==2) then
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=2;
+	alias i R4;
+	i=0;
+	while(i<16) do
+		if([[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+i]==-1) then	
+			//print i;
+			multipush(R1,R2,R3,R4);
+			R1=3;
+			R2=fileName;
+			call MOD_3;
+			multipop(R1,R2,R3,R4);
+			if(R0<0) then
+				[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+				[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=R0;
+				SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+				ireturn;
+			endif;
+			[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+i]=FILE;
+			[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+i+1]=R0;
+			break;
+		endif;
+		i=i+2;
+	endwhile;
+	if(i==16) then
+		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-3;  //process has reached its limit of resources
+	else
+		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=i; //return index
+	endif;
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	ireturn;
+	
+endif;
+
+//close sys call
+if(syscallno==3) then
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=3;
+	alias filedis R3;
+//	if(filedis<0 || filedis>14 || ([[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+filedis]!=FILE)) then
+//		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-1;
+//		SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+//		ireturn;
+//	endif;
+	multipush(R1,R2,R3);
+	R1=4;
+	R2=[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+filedis+1];
+	call MOD_3;
+	multipop(R1,R2,R3);
+	[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+filedis]=-1;
+	[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=0; 
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	ireturn;
+endif;
+
+
+//seek system call
+if(syscallno==6) then
+	alias fileDiscriptor R3;
+	alias offset R4;
+	alias mem R7;
+	mem=PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16;
+	offset=[[[mem+14]+2*((usersp-3)/512)]*512+(usersp-3)%512];
+//	if(fileDiscriptor<0 ||fileDiscriptor>14 || [[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512+512-16+fileDiscriptor]!=FILE ) then
+		
+//		[[[mem+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-1;
+//		[mem+9]=0;
+//		SP=[mem+13];
+//		ireturn;
+//	endif;
+	alias openIndex R5;
+	alias inodeIndex R6;
+	
+	openIndex=[[mem+11]*512+512-16+fileDiscriptor+1];
+	inodeIndex=[OPEN_FILE_TABLE+openIndex*4+0];
+	multipush(R1,R2,R3,R4,R5,R6,R7);
+	R1=4;
+	R2=inodeIndex;
+	R3=[SYSTEM_STATUS_TABLE+1];
+	call MOD_0; //acquire inode
+	multipop(R1,R2,R3,R4,R5,R6,R7);
+//	if(R0==-1) then
+//		[[ [mem + 14 ] + 2*((usersp-1)/512) ]*512 + (usersp-1)%512]=-1;
+//		SP=usersp;
+//		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+//		ireturn;
+//	endif;
+	alias lseek R8;
+	lseek=[OPEN_FILE_TABLE+openIndex*4+2];
+	if(lseek+offset<0) then
+		[[ [mem + 14 ] + 2*((usersp-1)/512) ]*512 + (usersp-1)%512]=-2; //return -2;
+	else
+
+		if(offset==0) then
+			[OPEN_FILE_TABLE+openIndex*4+2]=0;
+		else
+			if(lseek+offset>[INODE_TABLE+inodeIndex*16+2]) then
+				[OPEN_FILE_TABLE+openIndex*4+2]=[INODE_TABLE+inodeIndex*16+2];
+			else
+				//print "good";
+				[OPEN_FILE_TABLE+openIndex*4+2]=(lseek+offset);
+				//print [OPEN_FILE_TABLE+openIndex*4+2];
+			endif;
+		endif;
+		[[ [mem + 14 ] + 2*((usersp-1)/512) ]*512 + (usersp-1)%512]=0;
+	endif;
+	multipush(R1);
+	R1=5;
+	R2=inodeIndex;
+	R3=[SYSTEM_STATUS_TABLE+1];
+	call MOD_0; //release inode
+	multipop(R1);
+	
+	SP=usersp;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+	ireturn;
+endif;
+
