@@ -1,0 +1,67 @@
+type
+linkedlist{
+int data;
+linkedlist next;
+}
+endtype
+
+decl
+	linkedlist insert(linkedlist head,int a);
+enddecl
+
+linkedlist insert(linkedlist head,int a){
+decl
+	linkedlist ptr,tmp;
+	int temp;
+enddecl
+begin
+
+	tmp=alloc();
+	tmp.data=a;
+	tmp.next=null;
+
+	if(head==null) then
+		head=tmp;
+	else
+		ptr=head;
+		while(ptr.next!=null) do
+			ptr=ptr.next;
+		endwhile;
+		ptr.next=tmp;
+	endif;
+	return head;
+end
+}
+
+int main(){
+decl
+	int i,temp,pid;
+	linkedlist head,ptr,ch;
+enddecl
+begin
+	temp=initialize();
+	head=null;
+	i=1;
+	while(i<=100) do
+		head=insert(head,i);
+		i=i+1;
+	endwhile;
+	pid=exposcall("Fork");
+	ptr=head;
+	ch=ptr.next;
+	if(pid==0) then
+		while(ptr!=null AND ptr.next!=null) do
+			temp=exposcall("Write",-2,ptr.data);
+			temp=exposcall("Write",-2,"->");
+			ptr=ptr.next.next;
+		endwhile;
+	else
+		while(ch!=null AND ch.next!=null) do
+			temp=exposcall("Write",-2,ch.data);
+			temp=exposcall("Write",-2,"->");
+			ch=ch.next.next;
+		endwhile;
+	endif;
+	return 0;
+end
+}

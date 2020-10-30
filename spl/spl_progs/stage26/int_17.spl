@@ -1,0 +1,66 @@
+alias usersp R1;
+usersp=SP;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512-1;
+alias syscallno R2;
+syscallno=[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-5)/512)]*512+(usersp-5)%512];
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 +9]=syscallno;
+
+//login
+if(syscallno==27) then
+	alias username R4;
+	alias password R5;
+	alias i R3;
+	username=[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+	password=[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-3)/512)]*512+(usersp-3)%512];
+	if(username=="#^" && password=="@*") then
+		i=0;
+		while(i<MAX_USER_NUM) do
+			if([USER_TABLE+i*2+0]==-1) then
+				break;
+			else
+				print [USER_TABLE+i*2+0];
+			endif;
+			i=i+1;
+		endwhile;
+		goto label1;
+	endif;
+	if([SYSTEM_STATUS_TABLE+1]!=1) then //login process has pid 1
+		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-2;
+		goto label1;
+	endif;
+	
+	i=0;
+	while(i<MAX_USER_NUM) do
+		if([USER_TABLE+i*2+0]==username) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	if(i==MAX_USER_NUM) then
+		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-1;
+		goto label1;
+	endif;
+	encrypt password;
+	if([USER_TABLE+i*2+1]!=password) then
+		//printf("wrong password");
+		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-1;
+		goto label1;
+	endif;
+	[PROCESS_TABLE+2*16+4]=CREATED;
+	[PROCESS_TABLE+2*16+3]=i;
+	[PROCESS_TABLE+2*16+2]=1;
+	[PROCESS_TABLE+2*16+1]=2;
+	[PROCESS_TABLE+16+4]=WAIT_PROCESS;
+	[PROCESS_TABLE+16+5]=2;
+	[SYSTEM_STATUS_TABLE+0]=i;
+	//print i;
+	//[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=0;
+	call MOD_5;
+	
+endif;
+
+label1:
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 +9]=0;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	ireturn;

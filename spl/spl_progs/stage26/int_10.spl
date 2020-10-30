@@ -1,0 +1,49 @@
+//print "exit";
+//alias current_process_table R5;
+//current_process_table = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1 ] * 16;
+//[current_process_table + 4] = TERMINATED;
+
+
+//alias i R2;
+//i=1;
+//while(i<16) do
+//	if([PROCESS_TABLE+i*16+4]!=TERMINATED) then
+//	
+//		call MOD_5;
+//		ireturn;
+//	endif;
+//	i=i+1;
+//endwhile;
+//
+//halt;
+
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=10;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512 -1;
+R1=3;
+R2=[SYSTEM_STATUS_TABLE+1];
+call MOD_1;
+alias i R1;
+alias mode R2;
+mode=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9];
+if(mode!=9) then
+	i=0;
+	while(i<16) do
+		if([PROCESS_TABLE+i*16+4]==WAIT_PROCESS && [PROCESS_TABLE+i*16+5]==[SYSTEM_STATUS_TABLE+1]) then
+			//print "awake";
+			[PROCESS_TABLE+i*16+4]=READY;
+		endif;
+		i=i+1;
+	endwhile;
+	i=0;
+	while(i<16) do
+		if([PROCESS_TABLE+i*16+2]==[SYSTEM_STATUS_TABLE+1]) then
+			[PROCESS_TABLE+i*16+2]=-1;
+		endif;
+		i=i+1;
+	endwhile;
+endif;
+
+call MOD_5;
+print "exit error";
+ireturn;
+

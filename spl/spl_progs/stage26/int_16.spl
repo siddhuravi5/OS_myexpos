@@ -1,0 +1,155 @@
+alias usersp R1;
+usersp=SP;
+alias temp R10;
+temp=PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16;
+[temp+13]=SP;
+alias ret R11;
+ret=[[temp+14]+2*((usersp-1)/512)]*512+(usersp-1)%512;
+SP=[temp+11]*512-1;
+alias syscallno R2;
+syscallno=[[[temp+14]+2*((usersp-5)/512)]*512+(usersp-5)%512];
+[temp +9]=syscallno;
+
+//new user
+if(syscallno==22) then
+	if([SYSTEM_STATUS_TABLE+1]!=2 || [SYSTEM_STATUS_TABLE+0]!=1) then 
+		[ret]=-2;
+		goto label1;
+	endif;
+	alias username R4;
+	alias password R5;
+	username=[[[temp+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+	password=[[[temp+14]+2*((usersp-3)/512)]*512+(usersp-3)%512];
+	alias i R3;
+	i=0;
+	while(i<MAX_USER_NUM) do
+		if([USER_TABLE+i*2+0]==username) then
+			[ret]=-1;
+		goto label1; //user already exists
+		endif;
+		i=i+1;
+	endwhile;
+	i=0;
+	while(i<MAX_USER_NUM) do
+		if([USER_TABLE+i*2+0]==-1) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	if(i==MAX_USER_NUM) then
+		[ret]=-3;
+		goto label1;
+	endif;
+	encrypt password;
+	[USER_TABLE+i*2+0]=username;
+	[USER_TABLE+i*2+1]=password;
+	
+endif;
+
+//remove user
+if(syscallno==23) then
+	if([SYSTEM_STATUS_TABLE+1]!=2 || [SYSTEM_STATUS_TABLE+0]!=1) then 
+		[ret]=-2;
+		goto label1;
+	endif;
+	alias username R4;
+	username=[[[temp+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+	if(username=="root" || username=="kernel") then
+		[ret]=-2;
+		goto label1;
+	endif;
+	alias i R3;
+	i=0;
+	while(i<MAX_USER_NUM) do
+		if([USER_TABLE+i*2+0]==username) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	alias j R5;
+	j=i;
+	if(i==MAX_USER_NUM) then
+		[ret]=-1;
+		goto label1;
+	endif;
+	i=0;
+	while(i<60) do
+		if([ROOT_FILE+i*8+3]==username) then
+			[ret]=-3;
+			goto label1;  //cannot remove this user as he owns some files
+		endif;
+ 		i=i+1;
+	endwhile;
+	[USER_TABLE+j*2+0]=-1;
+	[USER_TABLE+j*2+1]=-1;
+endif;
+
+//set password
+if(syscallno==24) then
+	if([SYSTEM_STATUS_TABLE+1]!=2) then //shell process has pid 2
+		[ret]=-1;
+		goto label1;
+	endif;
+	alias username R4;
+	alias password R5;
+	username=[[[temp+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+	password=[[[temp+14]+2*((usersp-3)/512)]*512+(usersp-3)%512];
+	alias i R3;
+	i=0;
+	while(i<MAX_USER_NUM) do
+		if([USER_TABLE+i*2+0]==username) then
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	if(i==MAX_USER_NUM) then
+		[ret]=-2;
+		goto label1;
+	endif;
+	if(i!=[SYSTEM_STATUS_TABLE+0]) then
+		if([SYSTEM_STATUS_TABLE+0]!=1) then
+			[ret]=-1;
+			goto label1;
+		endif;
+	endif;
+	encrypt password;
+	[USER_TABLE+i*2+1]=password;
+endif;
+
+//get user id
+if(syscallno==26) then
+	alias username R4;
+	username=[[[temp+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+	alias i R3;
+	i=0;
+	while(i<MAX_USER_NUM) do
+		if([USER_TABLE+i*2]==username) then
+			[ret]=i;
+			//print ret;
+			goto label1;
+		endif;
+		i=i+1;
+	endwhile;
+	[ret]=-1;
+	goto label1;
+endif;
+
+//get username
+if(syscallno==25) then
+	alias userid R4;
+	userid=[[[temp+14]+2*((usersp-4)/512)]*512+(usersp-4)%512];
+	if(userid<0 ||userid>15) then
+		[ret]=-1;
+		goto label1;
+	endif;
+	
+	[ret]=[USER_TABLE+userid*2];
+	//print ret;
+	goto label1;
+endif;
+
+[ret]=0;
+label1:
+	[temp +9]=0;
+	SP=[temp+13];
+	ireturn;

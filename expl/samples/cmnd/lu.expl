@@ -1,0 +1,11 @@
+int main()
+{
+decl
+	string file;
+	int temp,a,b,i,fd;
+enddecl
+begin
+	temp=exposcall("Login","#^","@*");
+	return 0;
+end
+}
