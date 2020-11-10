@@ -1,0 +1,225 @@
+alias funcno R1;
+
+//swap out
+if(funcno==1) then
+	//print "swap out";
+	alias i R2;
+	alias flag R3;
+	flag=0;
+	i=3;
+	while(i<15) do
+		if([PROCESS_TABLE+i*16+4]==WAIT_PROCESS  && [PROCESS_TABLE+i*16+6]==0) then
+			flag=1;
+			break;
+		endif;
+		i=i+1;
+	endwhile;
+	if(flag==0) then
+		i=3;
+		while(i<15) do
+			if([PROCESS_TABLE+i*16+4]==WAIT_SEMAPHORE  && [PROCESS_TABLE+i*16+6]==0) then
+				flag=2;
+				break;
+			endif;
+			i=i+1;
+		endwhile;
+	endif;
+	alias max R4;
+	max=-1;
+	alias j R5;
+	j=-1;
+	if(flag==0) then
+		i=3;
+		
+		while(i<15) do
+			//print [PROCESS_TABLE+i*16];
+			if([PROCESS_TABLE+i*16+4]!=TERMINATED && [PROCESS_TABLE+i*16+4]!=RUNNING &&[PROCESS_TABLE+i*16+4]!=ALLOCATED && [PROCESS_TABLE+i*16+6]==0) then
+				if(max<[PROCESS_TABLE+i*16]) then
+					max=[PROCESS_TABLE+i*16];
+					j=i;
+					//print j;
+					//print max;
+				endif;
+			endif;
+			i=i+1;
+		endwhile;
+	endif;
+	if(flag==0 && j==-1) then
+		[SYSTEM_STATUS_TABLE+5]=0;
+		//[SYSTEM_STATUS_TABLE+2]=20;
+		//print "no swap needed";
+		return;
+	endif;
+	if(flag!=0) then
+		j=i;
+	endif;
+	[PROCESS_TABLE+j*16]=0; //tick is reset
+	alias ptbr R3;
+	//ptbr=[PROCESS_TABLE+j*16+14];
+	ptbr=PAGE_TABLE_BASE+j*20;
+	i=4;
+	
+	while(i<8) do
+		//print j;
+		//print [ptbr+2*i];
+		//print [MEMORY_FREE_LIST+[ptbr+2*i]];
+		if([ptbr+2*i]!=-1) then
+			multipush(R1,R2,R3,R5);
+			R1=2;
+			R2=[ptbr+2*i];
+			call MOD_2; //release page function
+			multipop(R1,R2,R3,R5);
+			[ptbr+2*i]=-1;
+			[ptbr+2*i+1]="0000";
+
+		endif;
+		i=i+1;
+	endwhile;
+
+	i=2;
+	//for heap
+	while(i<4) do
+		//print i;
+		if([ptbr+2*i]!=-1) then
+			if([MEMORY_FREE_LIST+[ptbr+2*i]]==1) then
+				multipush(R2,R3,R5);
+				//print "heap";
+				R1=6;
+				call MOD_2; //get swap block
+				multipop(R2,R3,R5);
+				//print R0;
+				[DISK_MAP_TABLE+j*10+i]=R0;  //disk map table entry
+				multipush(R2,R3,R5);
+				R3=[ptbr+2*i];
+				R1=1;
+				R2=15;
+				R4=R0;
+				//print R4;
+				call MOD_4;  //disk store
+				
+				multipop(R2,R3,R5);
+				multipush(R2,R3,R5);
+				R2=[ptbr+2*i];
+				R1=2;
+				call MOD_2;  //release page
+				multipop(R2,R3,R5);
+				[ptbr+2*i]=-1;
+				[ptbr+2*i+1]="0000";
+			endif;
+		endif;
+		 //for stack
+			if([ptbr+2*(i+6)]!=-1) then
+				multipush(R2,R3,R5);
+				//print "stack";
+				R1=22;
+				call MOD_4;
+				multipop(R2,R3,R5);
+			endif;
+		i=i+1;
+	endwhile;
+	[PROCESS_TABLE+j*16+6]=1; //set the swap_flag
+	[SYSTEM_STATUS_TABLE+4]=[SYSTEM_STATUS_TABLE+4]+1;
+	print "swap out";
+	//print j;
+	//print [SYSTEM_STATUS_TABLE+2];
+	[SYSTEM_STATUS_TABLE+5]=0; // paging status is reset
+	//print "go";
+	return;
+endif;
+
+//swap in
+if(funcno==2) then
+	//halt;
+	//print "swap in";
+	alias i R2;
+	alias max R3;
+	alias j R4;
+	j=-1;
+	max=-1;
+	i=3;
+	while(i<15) do
+		if([PROCESS_TABLE+i*16+6]==1 && [PROCESS_TABLE+i*16+4]==READY) then
+			if([PROCESS_TABLE+i*16]>max) then
+				max=[PROCESS_TABLE+i*16];
+				j=i;
+			endif;
+		endif;
+		i=i+1;
+	endwhile;
+	if(j==-1) then
+		[SYSTEM_STATUS_TABLE+5]=0;
+		return;
+	endif;
+	[PROCESS_TABLE+j*16]=0;
+	i=2;
+	alias ptbr R3;
+	ptbr=[PROCESS_TABLE+j*16+14];
+	//for heap
+	while(i<4) do
+		if([DISK_MAP_TABLE+j*10+i]!=-1) then
+				multipush(R2,R3,R4);
+				R1=1;
+				call MOD_2; //get free page
+				multipop(R2,R3,R4);
+				//[DISK_MAP_TABLE+j*10+2+i-2]=R0;  //disk map table entry
+				[ptbr+2*i]=R0;
+				[ptbr+2*i+1]="0110";
+				multipush(R2,R3,R4);
+				R4=[DISK_MAP_TABLE+j*10+i];
+				R1=2;
+				R2=15;
+				R3=R0;
+				call MOD_4;  //disk load
+				multipop(R2,R3,R4);
+				multipush(R2,R3,R4);
+				R2=[DISK_MAP_TABLE+j*10+i];
+				R1=4;
+				R3=j;
+				call MOD_2;  //release block
+				multipop(R2,R3,R4);
+				[DISK_MAP_TABLE+j*10+i]=-1;
+		endif;
+		//for stack
+			if([DISK_MAP_TABLE+j*10+i+6]!=-1) then
+				multipush(R1,R2,R3,R4);
+				R1=20;
+				//print "bbbbb";
+				call MOD_4; //helper fn due to size constraint
+				multipop(R1,R2,R3,R4);
+			endif;
+				//print "aaaaa";
+				
+//				multipush(R2,R3,R4);
+//				R1=1;
+//				call MOD_2; //get free page
+//				multipop(R2,R3,R4);
+//				[ptbr+2*(i+6)]=R0;
+//				[ptbr+2*(i+6)+1]="0110";
+//				multipush(R2,R3,R4);
+//				R4=[DISK_MAP_TABLE+j*10+i+6];
+//				R1=2;
+//				R2=j;
+//				R3=R0;
+//				call MOD_4;  //disk load
+//				multipop(R2,R3,R4);
+//				multipush(R2,R3,R4);
+//				R2=[DISK_MAP_TABLE+j*10+i+6];
+//				R1=4;
+//				R3=j;
+//				call MOD_2;  //release block
+//				multipop(R2,R3,R4);
+//				[DISK_MAP_TABLE+j*10+i+6]=-1;
+		i=i+1;
+	endwhile;
+	[PROCESS_TABLE+j*16+6]=0; //reset the swap_flag
+	[SYSTEM_STATUS_TABLE+4]=[SYSTEM_STATUS_TABLE+4]-1;
+	print "swap in";
+	//print j;
+	//print [SYSTEM_STATUS_TABLE+2];
+	//[PROCESS_TABLE+j*16+4]=READY;
+	//print [SYSTEM_STATUS_TABLE+4];
+	[SYSTEM_STATUS_TABLE+5]=0; // paging status is reset
+	
+endif;
+
+return;

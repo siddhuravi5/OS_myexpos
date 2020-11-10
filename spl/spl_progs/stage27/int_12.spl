@@ -1,0 +1,35 @@
+alias usersp R1;
+usersp=SP;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512-1;
+alias syscallno R2;
+syscallno=[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-5)/512)]*512+(usersp-5)%512];
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 +9]=syscallno;
+
+//logout
+if(syscallno==28) then
+	if([SYSTEM_STATUS_TABLE+1]!=2) then //shell process has pid 2
+		[[[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14]+2*((usersp-1)/512)]*512+(usersp-1)%512]=-1;
+		goto label1;
+	endif;
+	multipush(R1,R2);
+	R1=5;
+	R2=[SYSTEM_STATUS_TABLE+1];
+	call MOD_1;  //kill all fn
+	//print "back from kill";
+	multipop(R1,R2);
+	[PROCESS_TABLE+2*16+4]=TERMINATED;
+	[[[PROCESS_TABLE+2*16+14]+2*(4096/512)]*512+4096%512]=2056;
+	[PROCESS_TABLE+2*16+13]=4096;
+	[PROCESS_TABLE+1*16+4]=READY;  //wake up the login process
+	[SYSTEM_STATUS_TABLE+0]=0; //kernel is the user again
+	call MOD_5;
+endif;
+
+label1:
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 +9]=0;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	ireturn;
+	
+	
+	

@@ -1,0 +1,76 @@
+//halt;
+alias sp R10;
+sp=SP;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13]=SP;
+SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]*512 -1;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=21;
+//root pid(init pgm) only can call shutdown sys call
+//||[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+3]!=1
+if([SYSTEM_STATUS_TABLE+1]!=2 ) then
+	print "shut denied";
+	[ [ [PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+14] + 2*((sp-1)/512) ]*512 + (sp-1)%512 ]=-1;
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	ireturn;
+endif;
+multipush(R10);
+R1=5;
+R2=[SYSTEM_STATUS_TABLE+1];
+call MOD_1;
+multipop(R10);
+alias i R1;
+i=0;
+while(i<4) do
+	if([BUFFER_TABLE+i*4+1]==1) then
+		multipush(R10,R1);
+		
+		R2=[SYSTEM_STATUS_TABLE+1];
+		R3=71+([BUFFER_TABLE+i*4+0]%4);
+		R4=[BUFFER_TABLE+i*4+0];
+		R1=1;
+		//print R4;
+		call MOD_4;
+		multipop(R10,R1);
+	endif;
+	i=i+1;
+endwhile;
+//commiting the inode table,root table,disk free list and user table
+
+//disk store fn
+multipush(R10);
+R1=1;
+R2=[SYSTEM_STATUS_TABLE+1];
+R3=62;
+R4=5;
+call MOD_4;
+multipop(R10);
+
+
+//disk store fn
+multipush(R10);
+R1=1;
+R2=[SYSTEM_STATUS_TABLE+1];
+R3=59;
+R4=3;
+call MOD_4;
+multipop(R10);
+
+//disk store fn
+multipush(R10);
+R1=1;
+R2=[SYSTEM_STATUS_TABLE+1];
+R3=60;
+R4=4;
+call MOD_4;
+multipop(R10);
+
+//disk store fn
+multipush(R10);
+R1=1;
+R2=[SYSTEM_STATUS_TABLE+1];
+R3=61;
+R4=2;
+call MOD_4;
+multipop(R10);
+
+halt;

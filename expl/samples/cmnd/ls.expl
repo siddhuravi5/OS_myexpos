@@ -7,12 +7,10 @@ enddecl
 begin
 	fd=exposcall("Open","root");
 	i=0;
-	while(i<64) do
+	while(i<60) do
 		temp=exposcall("Read",fd,file);
 		if(file!="-1") then
 			temp=exposcall("Write",-2,file);
-		else 
-			break;
 		endif;
 		temp=exposcall("Seek",fd,7);
 		i=i+1;

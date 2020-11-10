@@ -1,0 +1,128 @@
+//print "context switch";
+
+backup;
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+multipush (BP);
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+
+[process_table_entry + 12] = SP % 512; //kptr stores offest only
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+alias i R2;
+//i=0;
+//print "context";
+//while(i<16) do
+//	print [PROCESS_TABLE+i*16+4];
+//	i=i+1;
+//endwhile;
+alias newPID R3;
+newPID=-1;
+alias newState R4;
+
+alias process_table R10;
+process_table=PROCESS_TABLE;
+//print "2";
+
+if([SYSTEM_STATUS_TABLE+5]!=0) then
+	//paging is ongoing
+	if([PROCESS_TABLE+15*16+4]==WAIT_DISK) then
+		//paging process is blocked due to disk opn
+		newPID=0;
+		newState=[PROCESS_TABLE+4];
+		goto label1;
+	else
+		//print "test";
+		newPID=15;  //schedule the swapper daemon
+		newState=[PROCESS_TABLE+15*16+4];
+		goto label1;
+	endif;
+endif;
+
+i=currentPID+1;
+while(i<15) do
+	//print [process_table+i*16+4];
+	if([process_table+i*16+4]==READY || [process_table+i*16+4]==CREATED) then
+		if([PROCESS_TABLE+i*16+6]==0) then		
+				newPID=i;
+				newState=[process_table+i*16+4];
+				break;
+		endif;
+	endif;
+	i=i+1;
+endwhile;
+if(newPID==-1) then
+	i=0;
+	while(i<=currentPID) do
+		//print [PROCESS_TABLE+i*16+6];
+		//print ([process_table+i*16+4]==READY);
+		//print ([process_table+i*16+4]==CREATED);
+		if([process_table+i*16+4]==READY || [process_table+i*16+4]==CREATED)then
+			if([PROCESS_TABLE+i*16+6]==0) then
+				//print "gg";
+				newPID=i;
+				newState=[process_table+i*16+4];
+				break;
+			endif;
+		endif;
+		i=i+1;
+	endwhile;
+endif;
+//print "3";
+if(newPID==-1) then
+	
+	newPID=0;
+	newState=[PROCESS_TABLE+4];
+	goto label1;
+endif;
+
+label1:
+//print "context switch";
+
+[SYSTEM_STATUS_TABLE+1] = newPID;
+//print newPID;
+if(newState==CREATED) then
+	//print "created";
+	//print newPID;
+	alias new_process_table R5;
+	new_process_table = PROCESS_TABLE + newPID * 16;
+
+	//Set back Kernel SP, PTBR , PTLR
+
+	SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+	BP=[SP];
+	//BP = [[PROCESS_TABLE + newPID*16 + 11] * 512];
+	PTBR = [new_process_table + 14];
+	PTLR = [new_process_table + 15];
+	[new_process_table + 9] =0;
+	[new_process_table + 4] = RUNNING;
+	SP= [PROCESS_TABLE + (newPID*16)+13];
+	ireturn;
+endif;
+
+alias new_process_table R5;
+new_process_table = PROCESS_TABLE + newPID * 16;
+
+//Set back Kernel SP, PTBR , PTLR
+R0=SP;
+
+SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+[new_process_table + 4] = RUNNING;
+
+multipop (BP);
+
+restore;
+
+return;
+
+
+
+
+
+
+

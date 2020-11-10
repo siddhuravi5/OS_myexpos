@@ -1,0 +1,83 @@
+breakpoint;
+
+//preprocess
+[PROCESS_TABLE+ ( [SYSTEM_STATUS_TABLE+1]*16) + 13] = SP;
+SP= [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16)+11] * 512 -1;
+
+backup;
+alias i R1;
+
+if([SYSTEM_STATUS_TABLE+5]!=0) then
+
+	if([SYSTEM_STATUS_TABLE+1]==15) then
+
+		if([SYSTEM_STATUS_TABLE+5]==SWAP_OUT) then
+			R1=1;
+			//print "k1";
+			//print [SYSTEM_STATUS_TABLE+2];
+			call MOD_6;
+			//print "back";
+		else
+			if([SYSTEM_STATUS_TABLE+5]==SWAP_IN) then
+				R1=2;
+				//print "k2";
+				//print [SYSTEM_STATUS_TABLE+2];
+				call MOD_6;
+			endif;
+		endif;
+	else
+		if([SYSTEM_STATUS_TABLE+1]==0) then
+			goto label1;
+		endif;
+	endif;
+else
+	if([SYSTEM_STATUS_TABLE+2]<MEM_LOW) then
+		[SYSTEM_STATUS_TABLE+5]=SWAP_OUT;
+	else
+		if([SYSTEM_STATUS_TABLE+4]>0) then
+			//alias i R1;
+			//i=3;
+			//while(i<15) do
+			//	if([PROCESS_TABLE+i*16+6]==1) then  //swap flag is set
+			//		if([PROCESS_TABLE+1*16+0]>MAX_TICK) then
+			//			[SYSTEM_STATUS_TABLE+5]=SWAP_IN;
+			//			break;
+			//		endif;
+			//	endif;
+			//	i=i+1;
+			//endwhile;
+			if([SYSTEM_STATUS_TABLE+2]>MEM_HIGH) then
+				alias i R1;
+				i=3;
+				while(i<15) do
+					if([PROCESS_TABLE+i*16+6]==1 && [PROCESS_TABLE+i*16+4]==READY) then  //swap flag is set
+						[SYSTEM_STATUS_TABLE+5]=SWAP_IN;
+						break;
+					endif;
+					i=i+1;
+				endwhile;
+				//[SYSTEM_STATUS_TABLE+5]=SWAP_IN;
+			endif;
+		endif;
+	endif;
+endif;
+
+label1:
+	//print "pre timer";
+	[PROCESS_TABLE+ ( [SYSTEM_STATUS_TABLE+1]*16) + 4] = READY;
+	
+	i=0;
+	while(i<16) do
+		if([PROCESS_TABLE+i*16+4]!=TERMINATED) then
+			[PROCESS_TABLE+i*16+0]=[PROCESS_TABLE+i*16+0]+1; //tick is increased
+		endif;
+		i=i+1;	
+	endwhile;
+	restore;
+	call MOD_5;
+	//print "post timer";
+	//print [SYSTEM_STATUS_TABLE+1];
+	//restore;
+	SP=[PROCESS_TABLE+ ( [SYSTEM_STATUS_TABLE+1]*16) + 13];
+	breakpoint;
+	ireturn;

@@ -3,7 +3,7 @@ decl
 	int temp,a;
 enddecl
 begin
-	a=exposcall("Getpid");
+	a=exposcall("Getpid");	
 	temp=exposcall("Write",-2,a);
 	return 0;
 end
